@@ -1,0 +1,450 @@
+---
+title: "Liver Disease Analysis"
+author: "Sean Cerulean Johnson"
+date: "2021-11-13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+```
+
+
+```{r}
+hcv = read_csv(here::here("data/hcvdat0.csv"))
+```
+
+```{r}
+summary(hcv)
+```
+
+```{r}
+df = na.omit(hcv)
+1 - nrow(df)/nrow(hcv)
+```
+
+```{r}
+#cleaning
+df$Category[df$Category == "0=Blood Donor"] = 0
+df$Category[df$Category == "0s=suspect Blood Donor"] = 1
+df$Category[df$Category == "1=Hepatitis"] = 2
+df$Category[df$Category == "2=Fibrosis"] = 3
+df$Category[df$Category == "3=Cirrhosis"] = 4
+
+df$Sex[df$Sex == "m"] = 0
+df$Sex[df$Sex == "f"] = 1
+
+```
+
+```{r}
+#drop id column
+df = df[,2:14]
+```
+
+```{r}
+df <- as.data.frame(df)
+df[,1] = as.numeric(df[,1])
+df[,3] = as.numeric(df[,3])
+```
+
+```{r}
+ind0 = (df$Category==0)
+ind1 = (df$Category==1)
+ind = ind0 | ind1
+self = df[ind,]
+bad = df[ind1,]
+allBad = df[!ind0,]
+
+63/589
+nrow(bad)
+7/589
+70/589
+```
+
+
+```{r}
+x = df
+x$Category[x$Category == 2] = 1
+x$Category[x$Category == 3] = 1
+x$Category[x$Category == 4] = 1
+```
+
+```{r}
+# table
+table_accuracy = matrix(nrow=6,ncol=3)
+colnames(table_accuracy) = c('Accuracy','Precision','Recall')
+rownames(table_accuracy) = c('DTree','NB','SVM-Linerar','SVM-Polynomial','ANN','KNN')
+table_accuracy
+```
+
+```{r}
+#K-fold cross validation
+n = nrow(x)
+k = 10
+tail = n%/%k
+
+set.seed(2)
+
+rnd = runif(n)
+rank = rank(rnd)
+blk = (rank-1)%/%tail+1
+blk = as.factor(blk)
+
+print(summary(blk))
+```
+```{r}
+#cannot have there be a categoryof 1 in holdout.
+print(x$Category[blk==11])
+```
+
+```{r}
+#dtree
+library(rpart)
+set.seed(2)
+
+all.acc = numeric(0)
+all.pre = numeric(0)
+all.rec = numeric(0)
+for(i in 1:k){
+  tree = rpart(Category~.,x[blk != i,],method="class")
+  pred = predict(tree,x[blk==i,],type="class")
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
+  pre = (confMat[1,1])/sum(confMat[1,])
+  rec = (confMat[1,1])/sum(confMat[,1])
+  all.acc = rbind(all.acc,acc)
+  all.pre = rbind(all.pre,pre)
+  all.rec = rbind(all.rec,rec)
+}
+j=1
+print(mean(all.acc))
+print(mean(all.pre))
+print(mean(all.rec))
+table_accuracy[j,1] = mean(all.acc)
+table_accuracy[j,2] = mean(all.pre)
+table_accuracy[j,3] = mean(all.rec)
+```
+
+```{r}
+# naive Bayes (gaussian data)
+library(e1071)
+set.seed(2)
+
+all.acc = numeric(0)
+all.pre = numeric(0)
+all.rec = numeric(0)
+for(i in 1:k){
+  model = naiveBayes(Category~.,x[blk != i,],method="class")
+  pred = predict(model,x[blk==i,],type="class")
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
+  pre = (confMat[1,1])/sum(confMat[1,])
+  rec = (confMat[1,1])/sum(confMat[,1])
+  all.acc = rbind(all.acc,acc)
+  all.pre = rbind(all.pre,pre)
+  all.rec = rbind(all.rec,rec)
+}
+j=2
+print(mean(all.acc))
+print(mean(all.pre))
+print(mean(all.rec))
+table_accuracy[j,1] = mean(all.acc)
+table_accuracy[j,2] = mean(all.pre)
+table_accuracy[j,3] = mean(all.rec)
+```
+
+```{r}
+#svm linear
+set.seed(2)
+
+all.acc = numeric(0)
+all.pre = numeric(0)
+all.rec = numeric(0)
+for(i in 1:k){
+  model = svm(Category~.,x[blk != i,],kernel="linear",type="C")
+  pred = predict(model,x[blk==i,],type="class")
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
+  pre = (confMat[1,1])/sum(confMat[1,])
+  rec = (confMat[1,1])/sum(confMat[,1])
+  all.acc = rbind(all.acc,acc)
+  all.pre = rbind(all.pre,pre)
+  all.rec = rbind(all.rec,rec)
+}
+j=3
+print(mean(all.acc))
+print(mean(all.pre))
+print(mean(all.rec))
+table_accuracy[j,1] = mean(all.acc)
+table_accuracy[j,2] = mean(all.pre)
+table_accuracy[j,3] = mean(all.rec)
+```
+
+```{r}
+#svm poly
+set.seed(2)
+
+all.acc = numeric(0)
+all.pre = numeric(0)
+all.rec = numeric(0)
+for(i in 1:k){
+  model = svm(Category~.,x[blk != i,],kernel="polynomial",type="C")
+  pred = predict(model,x[blk==i,],type="class")
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
+  pre = (confMat[1,1])/sum(confMat[1,])
+  rec = (confMat[1,1])/sum(confMat[,1])
+  all.acc = rbind(all.acc,acc)
+  all.pre = rbind(all.pre,pre)
+  all.rec = rbind(all.rec,rec)
+}
+j=4
+print(mean(all.acc))
+print(mean(all.pre))
+print(mean(all.rec))
+table_accuracy[j,1] = mean(all.acc)
+table_accuracy[j,2] = mean(all.pre)
+table_accuracy[j,3] = mean(all.rec)
+```
+
+```{r}
+#ann
+library(nnet)
+set.seed(2)
+
+all.acc = numeric(0)
+all.pre = numeric(0)
+all.rec = numeric(0)
+for(i in 1:k){
+  model = nnet(Category~.,x[blk != i,], size = 7, trace=FALSE, wgts=.1)
+  pred = as.integer(predict(model, x[blk==i,]))
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1])/sum(confMat)
+  pre = (confMat[1,1])/sum(confMat[1,])
+  rec = (confMat[1,1])/sum(confMat[,1])
+  all.acc = rbind(all.acc,acc)
+  all.pre = rbind(all.pre,pre)
+  all.rec = rbind(all.rec,rec)
+}
+j=5
+print(mean(all.acc))
+print(mean(all.pre))
+print(mean(all.rec))
+table_accuracy[j,1] = mean(all.acc)
+table_accuracy[j,2] = mean(all.pre)
+table_accuracy[j,3] = mean(all.rec)
+```
+```{r}
+set.seed(2)
+n=5
+library (caret)
+trControl = trainControl(method="cv",number=n)
+x1 = x[,]
+x1$Category = as.factor(x1$Category)
+model = train(Category ~ ., method = "knn", tuneGrid = expand.grid(k = 1:10), trControl = trControl, data = x1)
+model
+```
+
+
+```{r}
+#knn
+library(class)
+set.seed(2)
+
+aall.acc = numeric(0)
+all.pre = numeric(0)
+all.rec = numeric(0)
+for(i in 1:k){
+  tr = x1[blk != i,]
+  te = x1[blk == i,]
+  pred = knn(train = tr, test = te, cl = tr[,1], k=8)
+  confMat = table(pred,x1$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
+  pre = (confMat[1,1])/sum(confMat[1,])
+  rec = (confMat[1,1])/sum(confMat[,1])
+  all.acc = rbind(all.acc,acc)
+  all.pre = rbind(all.pre,pre)
+  all.rec = rbind(all.rec,rec)
+}
+j=6
+print(mean(all.acc))
+print(mean(all.pre))
+print(mean(all.rec))
+table_accuracy[j,1] = mean(all.acc)
+table_accuracy[j,2] = mean(all.pre)
+table_accuracy[j,3] = mean(all.rec)
+```
+
+```{r}
+tab = round(table_accuracy,4)
+tab
+```
+
+```{r}
+write.table(tab, file = 'data/accuracy.txt', sep =' ', row.names = TRUE, col.names = TRUE)
+write.table(x, file = 'data/main_df.txt', sep =' ', row.names = TRUE, col.names = TRUE)
+```
+
+# ~~~~~~~~~
+
+```{r}
+x = allBad
+```
+
+```{r}
+# table
+table_accuracy = matrix(nrow=6,ncol=1)
+colnames(table_accuracy) = c('Accuracy')
+rownames(table_accuracy) = c('DTree','NB','SVM-Linerar','SVM-Polynomial','ANN','KNN')
+table_accuracy
+```
+
+```{r}
+#5-fold cross validation
+n = nrow(x)
+k = 5
+tail = n%/%k
+
+set.seed(2)
+
+rnd = runif(n)
+rank = rank(rnd)
+blk = (rank-1)%/%tail+1
+blk = as.factor(blk)
+
+print(summary(blk))
+```
+```{r}
+#cannot have there be a categoryof 1 in holdout.
+print(x$Category[blk==6])
+```
+
+```{r}
+#dtree
+library(rpart)
+set.seed(2)
+all.acc = numeric(0)
+for(i in 1:k){
+  tree = rpart(Category~.,x[blk != i,],method="class")
+  pred = predict(tree,x[blk==i,],type="class")
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
+  all.acc = rbind(all.acc,acc)
+}
+j=1
+print(mean(all.acc))
+table_accuracy[j,1] = mean(all.acc)
+```
+
+```{r}
+# naive Bayes (gaussian data)
+library(e1071)
+set.seed(2)
+all.acc = numeric(0)
+for(i in 1:k){
+  model = naiveBayes(Category~.,x[blk != i,],method="class")
+  pred = predict(model,x[blk==i,],type="class")
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
+  all.acc = rbind(all.acc,acc)
+}
+j=2
+print(mean(all.acc))
+table_accuracy[j,1] = mean(all.acc)
+
+```
+
+```{r}
+#svm linear
+set.seed(2)
+all.acc = numeric(0)
+for(i in 1:k){
+  model = svm(Category~.,x[blk != i,],kernel="linear",type="C")
+  pred = predict(model,x[blk==i,],type="class")
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
+  all.acc = rbind(all.acc,acc)
+}
+j=3
+print(mean(all.acc))
+table_accuracy[j,1] = mean(all.acc)
+```
+
+```{r}
+#svm poly
+set.seed(2)
+all.acc = numeric(0)
+for(i in 1:k){
+  model = svm(Category~.,x[blk != i,],kernel="polynomial",type="C")
+  pred = predict(model,x[blk==i,],type="class")
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
+  all.acc = rbind(all.acc,acc)
+}
+j=4
+print(mean(all.acc))
+table_accuracy[j,1] = mean(all.acc)
+```
+
+```{r}
+#ann
+library(nnet)
+set.seed(2)
+all.acc = numeric(0)
+for(i in 1:k){
+  model = nnet(Category~.,x[blk != i,], size = 7, trace=FALSE, wgts=.1)
+  pred = as.integer(predict(model, x[blk==i,]))
+  confMat = table(pred,x$Category[blk==i])
+  acc = (confMat[1,1])/sum(confMat)
+  all.acc = rbind(all.acc,acc)
+}
+j=5
+print(mean(all.acc))
+table_accuracy[j,1] = mean(all.acc)
+```
+
+
+```{r}
+set.seed(2)
+n=5
+library (caret)
+trControl = trainControl(method="cv",number=n)
+x1 = x[,]
+x1$Category = as.factor(x1$Category)
+model = train(Category ~ ., method = "knn", tuneGrid = expand.grid(k = 1:10), trControl = trControl, data = x1)
+model
+```
+
+
+```{r}
+#knn
+library(class)
+set.seed(2)
+aall.acc = numeric(0)
+for(i in 1:k){
+  tr = x1[blk != i,]
+  te = x1[blk == i,]
+  pred = knn(train = tr, test = te, cl = tr[,1], k=10)
+  confMat = table(pred,x1$Category[blk==i])
+  acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
+  all.acc = rbind(all.acc,acc)
+}
+j=6
+print(mean(all.acc))
+table_accuracy[j,1] = mean(all.acc)
+```
+
+```{r}
+tab = round(table_accuracy,4)
+tab
+```
+
+```{r}
+write.table(tab, file = 'data/accuracy_allBad.txt', sep =' ', row.names = TRUE, col.names = TRUE)
+write.table(x, file = 'data/allBad_df.txt', sep =' ', row.names = TRUE, col.names = TRUE)
+```
+
