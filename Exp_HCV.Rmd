@@ -9,44 +9,51 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Library
 ```{r}
-library(readr)
+library(dplyr)
 ```
 
-
+# Data
 ```{r}
-hcv = read_csv(here::here("data/hcvdat0.csv"))
+#data was downloaded from the IC repository
+hcv = readr::read_csv(here::here("data/hcvdat0.csv"))
 ```
 
+# Quick Overview
 ```{r}
 summary(hcv)
 ```
 
+# Data Wrangling
+
+## Removing NAs
 ```{r}
-df = na.omit(hcv)
+df = as.data.frame(na.omit(hcv))
 1 - nrow(df)/nrow(hcv)
 ```
 
+## Renaming
 ```{r}
 #cleaning
-df$Category[df$Category == "0=Blood Donor"] = 0
-df$Category[df$Category == "0s=suspect Blood Donor"] = 1
-df$Category[df$Category == "1=Hepatitis"] = 2
-df$Category[df$Category == "2=Fibrosis"] = 3
-df$Category[df$Category == "3=Cirrhosis"] = 4
-
-df$Sex[df$Sex == "m"] = 0
-df$Sex[df$Sex == "f"] = 1
-
+df<-df%>%
+  mutate(Category = case_when(Category == "0=Blood Donor" ~0,
+                              Category == "0s=suspect Blood Donor" ~1,
+                              Category == "1=Hepatitis" ~2,
+                              Category == "2=Fibrosis" ~3,
+                              Category == "3=Cirrhosis" ~4),
+         Sex = case_when(Sex=="m" ~0,
+                         Sex=="f" ~1))
 ```
 
+## Drop ID Col
 ```{r}
-#drop id column
-df = df[,2:14]
+df <-df%>%
+  select(-...1)
 ```
 
+## Formatting
 ```{r}
-df <- as.data.frame(df)
 df[,1] = as.numeric(df[,1])
 df[,3] = as.numeric(df[,3])
 ```
@@ -58,21 +65,23 @@ ind = ind0 | ind1
 self = df[ind,]
 bad = df[ind1,]
 allBad = df[!ind0,]
-
-63/589
-nrow(bad)
-7/589
-70/589
+#checks
+nrow(allBad)/nrow(df)
+nrow(bad)/nrow(df)
 ```
 
-
+# Subset of DF
 ```{r}
 x = df
-x$Category[x$Category == 2] = 1
-x$Category[x$Category == 3] = 1
-x$Category[x$Category == 4] = 1
+x<-x%>%
+  mutate(Category = case_when(Category == 2 ~1,
+                              Category == 3 ~1,
+                              Category == 4 ~1,
+                              TRUE ~0))
+
 ```
 
+# Table for Predictive Modeling
 ```{r}
 # table
 table_accuracy = matrix(nrow=6,ncol=3)
@@ -80,9 +89,8 @@ colnames(table_accuracy) = c('Accuracy','Precision','Recall')
 rownames(table_accuracy) = c('DTree','NB','SVM-Linerar','SVM-Polynomial','ANN','KNN')
 table_accuracy
 ```
-
+# K-fold Cross-Validation
 ```{r}
-#K-fold cross validation
 n = nrow(x)
 k = 10
 tail = n%/%k
@@ -96,21 +104,17 @@ blk = as.factor(blk)
 
 print(summary(blk))
 ```
-```{r}
-#cannot have there be a categoryof 1 in holdout.
-print(x$Category[blk==11])
-```
+# Predictive Models
 
+## Decision Tree
 ```{r}
-#dtree
-library(rpart)
 set.seed(2)
 
 all.acc = numeric(0)
 all.pre = numeric(0)
 all.rec = numeric(0)
 for(i in 1:k){
-  tree = rpart(Category~.,x[blk != i,],method="class")
+  tree = rpart::rpart(Category~.,x[blk != i,],method="class")
   pred = predict(tree,x[blk==i,],type="class")
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
@@ -128,17 +132,15 @@ table_accuracy[j,1] = mean(all.acc)
 table_accuracy[j,2] = mean(all.pre)
 table_accuracy[j,3] = mean(all.rec)
 ```
-
+## Naive Bayes
 ```{r}
-# naive Bayes (gaussian data)
-library(e1071)
 set.seed(2)
 
 all.acc = numeric(0)
 all.pre = numeric(0)
 all.rec = numeric(0)
 for(i in 1:k){
-  model = naiveBayes(Category~.,x[blk != i,],method="class")
+  model = e1071::naiveBayes(Category~.,x[blk != i,],method="class")
   pred = predict(model,x[blk==i,],type="class")
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
@@ -156,16 +158,15 @@ table_accuracy[j,1] = mean(all.acc)
 table_accuracy[j,2] = mean(all.pre)
 table_accuracy[j,3] = mean(all.rec)
 ```
-
+## SVM Linear
 ```{r}
-#svm linear
 set.seed(2)
 
 all.acc = numeric(0)
 all.pre = numeric(0)
 all.rec = numeric(0)
 for(i in 1:k){
-  model = svm(Category~.,x[blk != i,],kernel="linear",type="C")
+  model = e1071::svm(Category~.,x[blk != i,],kernel="linear",type="C")
   pred = predict(model,x[blk==i,],type="class")
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
@@ -183,16 +184,15 @@ table_accuracy[j,1] = mean(all.acc)
 table_accuracy[j,2] = mean(all.pre)
 table_accuracy[j,3] = mean(all.rec)
 ```
-
+## SVM Polynomial
 ```{r}
-#svm poly
 set.seed(2)
 
 all.acc = numeric(0)
 all.pre = numeric(0)
 all.rec = numeric(0)
 for(i in 1:k){
-  model = svm(Category~.,x[blk != i,],kernel="polynomial",type="C")
+  model = e1071::svm(Category~.,x[blk != i,],kernel="polynomial",type="C")
   pred = predict(model,x[blk==i,],type="class")
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
@@ -210,17 +210,15 @@ table_accuracy[j,1] = mean(all.acc)
 table_accuracy[j,2] = mean(all.pre)
 table_accuracy[j,3] = mean(all.rec)
 ```
-
+## Nerual Net
 ```{r}
-#ann
-library(nnet)
 set.seed(2)
 
 all.acc = numeric(0)
 all.pre = numeric(0)
 all.rec = numeric(0)
 for(i in 1:k){
-  model = nnet(Category~.,x[blk != i,], size = 7, trace=FALSE, wgts=.1)
+  model = nnet::nnet(Category~.,x[blk != i,], size = 7, trace=FALSE, wgts=.1)
   pred = as.integer(predict(model, x[blk==i,]))
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1])/sum(confMat)
@@ -238,21 +236,21 @@ table_accuracy[j,1] = mean(all.acc)
 table_accuracy[j,2] = mean(all.pre)
 table_accuracy[j,3] = mean(all.rec)
 ```
+
+## K-Nearest Neighbors
 ```{r}
 set.seed(2)
 n=5
-library (caret)
-trControl = trainControl(method="cv",number=n)
+
+trControl = caret::trainControl(method="cv",number=n)
 x1 = x[,]
 x1$Category = as.factor(x1$Category)
-model = train(Category ~ ., method = "knn", tuneGrid = expand.grid(k = 1:10), trControl = trControl, data = x1)
+model = caret::train(Category ~ ., method = "knn", tuneGrid = expand.grid(k = 1:10), trControl = trControl, data = x1)
 model
 ```
 
 
 ```{r}
-#knn
-library(class)
 set.seed(2)
 
 aall.acc = numeric(0)
@@ -261,7 +259,7 @@ all.rec = numeric(0)
 for(i in 1:k){
   tr = x1[blk != i,]
   te = x1[blk == i,]
-  pred = knn(train = tr, test = te, cl = tr[,1], k=8)
+  pred = class::knn(train = tr, test = te, cl = tr[,1], k=8)
   confMat = table(pred,x1$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2])/sum(confMat)
   pre = (confMat[1,1])/sum(confMat[1,])
@@ -278,33 +276,35 @@ table_accuracy[j,1] = mean(all.acc)
 table_accuracy[j,2] = mean(all.pre)
 table_accuracy[j,3] = mean(all.rec)
 ```
-
+# Table of Models
 ```{r}
 tab = round(table_accuracy,4)
 tab
 ```
-
+## Write Out Info for further use
 ```{r}
 write.table(tab, file = 'data/accuracy.txt', sep =' ', row.names = TRUE, col.names = TRUE)
 write.table(x, file = 'data/main_df.txt', sep =' ', row.names = TRUE, col.names = TRUE)
 ```
 
 # ~~~~~~~~~
+ 
+# Analysis Liver Disease Stages
 
 ```{r}
 x = allBad
 ```
 
+# Table 
 ```{r}
-# table
 table_accuracy = matrix(nrow=6,ncol=1)
 colnames(table_accuracy) = c('Accuracy')
 rownames(table_accuracy) = c('DTree','NB','SVM-Linerar','SVM-Polynomial','ANN','KNN')
 table_accuracy
 ```
 
+# K-Fold CV
 ```{r}
-#5-fold cross validation
 n = nrow(x)
 k = 5
 tail = n%/%k
@@ -323,13 +323,13 @@ print(summary(blk))
 print(x$Category[blk==6])
 ```
 
+# Predictive Models
+## Decision Tree
 ```{r}
-#dtree
-library(rpart)
 set.seed(2)
 all.acc = numeric(0)
 for(i in 1:k){
-  tree = rpart(Category~.,x[blk != i,],method="class")
+  tree = rpart::rpart(Category~.,x[blk != i,],method="class")
   pred = predict(tree,x[blk==i,],type="class")
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
@@ -339,14 +339,13 @@ j=1
 print(mean(all.acc))
 table_accuracy[j,1] = mean(all.acc)
 ```
-
+ 
+## Naive Bayes
 ```{r}
-# naive Bayes (gaussian data)
-library(e1071)
 set.seed(2)
 all.acc = numeric(0)
 for(i in 1:k){
-  model = naiveBayes(Category~.,x[blk != i,],method="class")
+  model = e1071::naiveBayes(Category~.,x[blk != i,],method="class")
   pred = predict(model,x[blk==i,],type="class")
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
@@ -358,12 +357,12 @@ table_accuracy[j,1] = mean(all.acc)
 
 ```
 
+## SVM Linear
 ```{r}
-#svm linear
 set.seed(2)
 all.acc = numeric(0)
 for(i in 1:k){
-  model = svm(Category~.,x[blk != i,],kernel="linear",type="C")
+  model = e1071::svm(Category~.,x[blk != i,],kernel="linear",type="C")
   pred = predict(model,x[blk==i,],type="class")
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
@@ -374,12 +373,12 @@ print(mean(all.acc))
 table_accuracy[j,1] = mean(all.acc)
 ```
 
+## SVM Polynomial
 ```{r}
-#svm poly
 set.seed(2)
 all.acc = numeric(0)
 for(i in 1:k){
-  model = svm(Category~.,x[blk != i,],kernel="polynomial",type="C")
+  model = e1071::svm(Category~.,x[blk != i,],kernel="polynomial",type="C")
   pred = predict(model,x[blk==i,],type="class")
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
@@ -390,13 +389,12 @@ print(mean(all.acc))
 table_accuracy[j,1] = mean(all.acc)
 ```
 
+## Neural Network
 ```{r}
-#ann
-library(nnet)
 set.seed(2)
 all.acc = numeric(0)
 for(i in 1:k){
-  model = nnet(Category~.,x[blk != i,], size = 7, trace=FALSE, wgts=.1)
+  model = nnet::nnet(Category~.,x[blk != i,], size = 7, trace=FALSE, wgts=.1)
   pred = as.integer(predict(model, x[blk==i,]))
   confMat = table(pred,x$Category[blk==i])
   acc = (confMat[1,1])/sum(confMat)
@@ -407,12 +405,11 @@ print(mean(all.acc))
 table_accuracy[j,1] = mean(all.acc)
 ```
 
-
+## K Nearest Neighbors
 ```{r}
 set.seed(2)
 n=5
-library (caret)
-trControl = trainControl(method="cv",number=n)
+trControl = caret::trainControl(method="cv",number=n)
 x1 = x[,]
 x1$Category = as.factor(x1$Category)
 model = train(Category ~ ., method = "knn", tuneGrid = expand.grid(k = 1:10), trControl = trControl, data = x1)
@@ -421,14 +418,12 @@ model
 
 
 ```{r}
-#knn
-library(class)
 set.seed(2)
 aall.acc = numeric(0)
 for(i in 1:k){
   tr = x1[blk != i,]
   te = x1[blk == i,]
-  pred = knn(train = tr, test = te, cl = tr[,1], k=10)
+  pred = class::knn(train = tr, test = te, cl = tr[,1], k=10)
   confMat = table(pred,x1$Category[blk==i])
   acc = (confMat[1,1]+confMat[2,2]+confMat[3,3]+confMat[4,4])/sum(confMat)
   all.acc = rbind(all.acc,acc)
@@ -438,11 +433,13 @@ print(mean(all.acc))
 table_accuracy[j,1] = mean(all.acc)
 ```
 
+# Table
 ```{r}
 tab = round(table_accuracy,4)
 tab
 ```
 
+# Write Out
 ```{r}
 write.table(tab, file = 'data/accuracy_allBad.txt', sep =' ', row.names = TRUE, col.names = TRUE)
 write.table(x, file = 'data/allBad_df.txt', sep =' ', row.names = TRUE, col.names = TRUE)
