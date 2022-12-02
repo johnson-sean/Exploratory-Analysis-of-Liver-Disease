@@ -1,6 +1,6 @@
 ---
 title: "Liver Disease Analysis"
-author: "Sean Cerulean Johnson"
+author: "Sean Johnson"
 date: "2021-11-13"
 output: pdf_document
 ---
@@ -15,9 +15,9 @@ library(dplyr)
 ```
 
 # Data
-```{r}
+```{r, message=FALSE}
 #data was downloaded from the IC repository
-hcv = readr::read_csv(here::here("data/hcvdat0.csv"))
+hcv = readr::read_csv(here::here("data","hcvdat0.csv"))
 ```
 
 # Quick Overview
