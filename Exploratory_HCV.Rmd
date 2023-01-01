@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Library
-```{r}
+```{r, warning=FALSE,message=FALSE}
 library(dplyr)
 ```
 
@@ -77,7 +77,8 @@ x<-x%>%
   mutate(Category = case_when(Category == 2 ~1,
                               Category == 3 ~1,
                               Category == 4 ~1,
-                              TRUE ~0))
+                              TRUE ~0))%>%
+  mutate(Category = as.factor(Category))
 
 ```
 
@@ -184,6 +185,7 @@ table_accuracy[j,1] = mean(all.acc)
 table_accuracy[j,2] = mean(all.pre)
 table_accuracy[j,3] = mean(all.rec)
 ```
+
 ## SVM Polynomial
 ```{r}
 set.seed(2)
@@ -278,8 +280,12 @@ table_accuracy[j,3] = mean(all.rec)
 ```
 # Table of Models
 ```{r}
-tab = round(table_accuracy,4)
-tab
+tab <- round(table_accuracy,4)
+tab <- as_tibble(tab)
+tab$`Model Name` <-  c('DTree','NB','SVM-Linerar','SVM-Polynomial','ANN','KNN')
+tab%>%
+  select(`Model Name`,Accuracy,Precision,Recall)%>%
+  Thematic::tabGT(table_title = "Model Performance")
 ```
 ## Write Out Info for further use
 ```{r}
@@ -371,6 +377,9 @@ for(i in 1:k){
 j=3
 print(mean(all.acc))
 table_accuracy[j,1] = mean(all.acc)
+
+
+
 ```
 
 ## SVM Polynomial
